@@ -14,6 +14,8 @@
 #include "pm_shared.h"
 #include "Exports.h"
 
+#include "r_water.h"
+
 #include "particleman.h"
 extern IParticleMan* g_pParticleMan;
 
@@ -32,6 +34,8 @@ HUD_AddEntity
 int DLLEXPORT HUD_AddEntity(int type, struct cl_entity_s* ent, const char* modelname)
 {
 	//	RecClAddEntity(type, ent, modelname);
+
+	g_WaterRenderer.AddEntity(ent);
 
 	switch (type)
 	{

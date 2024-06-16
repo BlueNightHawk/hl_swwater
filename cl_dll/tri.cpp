@@ -22,6 +22,8 @@
 #include "tri.h"
 extern IParticleMan* g_pParticleMan;
 
+#include "r_water.h"
+
 /*
 =================
 HUD_DrawNormalTriangles
@@ -32,6 +34,8 @@ Non-transparent triangles-- add them here
 void DLLEXPORT HUD_DrawNormalTriangles()
 {
 	//	RecClDrawNormalTriangles();
+
+	g_WaterRenderer.Draw();
 
 	gHUD.m_Spectator.DrawOverview();
 }
@@ -47,8 +51,9 @@ Render any triangles with transparent rendermode needs here
 void DLLEXPORT HUD_DrawTransparentTriangles()
 {
 	//	RecClDrawTransparentTriangles();
-
+	g_WaterRenderer.DrawTransparent();
 
 	if (g_pParticleMan)
 		g_pParticleMan->Update();
+
 }

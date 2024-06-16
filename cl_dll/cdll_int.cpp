@@ -38,6 +38,8 @@
 #include "vgui_TeamFortressViewport.h"
 #include "filesystem_utils.h"
 
+#include "r_water.h"
+
 cl_enginefunc_t gEngfuncs;
 CHud gHUD;
 TeamFortressViewport* gViewPort = NULL;
@@ -52,6 +54,7 @@ void CL_UnloadParticleMan();
 void InitInput();
 void EV_HookEvents();
 void IN_Commands();
+
 
 /*
 ================================
@@ -173,6 +176,8 @@ int DLLEXPORT HUD_VidInit()
 
 	VGui_Startup();
 
+	g_WaterRenderer.VidInit();
+
 	return 1;
 }
 
@@ -192,6 +197,8 @@ void DLLEXPORT HUD_Init()
 	InitInput();
 	gHUD.Init();
 	Scheme_Init();
+
+	g_WaterRenderer.Init();
 }
 
 
