@@ -550,6 +550,15 @@ void CWaterRenderer::Draw()
 	// draw world
 	RecursiveDrawWaterWorld(m_pworld->nodes, m_pworld);
 
+	glPopAttrib();
+}
+
+void CWaterRenderer::DrawTransparent()
+{
+	if ((int)r_ripples->value <= 0)
+		return;
+
+	glPushAttrib(GL_TEXTURE_BIT);
 	for (size_t i = 0; i < m_WaterBuffer.size(); i++)
 	{
 		DrawWaterForEntity(m_WaterBuffer[i]);

@@ -15,6 +15,8 @@ public:
 	
 	// tri.cpp -> HUD_DrawNormalTriangles()
 	void Draw();
+	// tri.cpp -> HUD_DrawTransparentTriangles()
+	void DrawTransparent();
 
 	// entity.cpp -> HUD_AddEntity()
 	bool AddEntity(cl_entity_s* ent);
