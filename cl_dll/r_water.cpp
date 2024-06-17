@@ -27,6 +27,9 @@
 #include "tri.h"
 #include "triangleapi.h"
 
+#include "particleman.h"
+#include "particleman_internal.h"
+
 CWaterRenderer g_WaterRenderer;
 
 extern CGameStudioModelRenderer g_StudioRenderer;
@@ -87,27 +90,25 @@ void CWaterRenderer::VidInit()
 	m_WaterBuffer.clear();
 }
 
-void CWaterRenderer::AddEntity(cl_entity_s* ent)
+bool CWaterRenderer::AddEntity(cl_entity_s* ent)
 {
+	if ((int)r_ripples->value <= 0)
+		return false;
+
+	if ((ent->baseline.eflags & EF_NODRAW) != 0)
+	{
+		return true;
+	}
+
 	if (ent->curstate.skin == CONTENTS_WATER)
 	{
-		// check for existing ent
-		bool found = false;
-		for (size_t i = 0; i < m_WaterBuffer.size(); i++)
-		{
-			if (m_WaterBuffer[i]->index == ent->index)
-				found = true;
-		}
-
-		if (!found)
-		{
+		if (std::find(m_WaterBuffer.begin(), m_WaterBuffer.end(), ent) == m_WaterBuffer.end())
 			m_WaterBuffer.push_back(ent);
-		}
 
-		ent->baseline.effects = EF_NODRAW;
-		ent->prevstate.effects = EF_NODRAW;
-		ent->curstate.effects = EF_NODRAW;
+		ent->baseline.eflags |= EF_NODRAW;
+		return true;
 	}
+	return false;
 }
 
 static mleaf_t* Mod_PointInLeaf(Vector p, model_t* model) // quake's func
@@ -425,42 +426,15 @@ void CWaterRenderer::RecursiveDrawWaterWorld(mnode_t* node, model_s* pmodel)
 
 	if (node->contents < 0)
 		return; // faces already marked by engine
-	
+
+	// recurse down the children, Order doesn't matter
+	RecursiveDrawWaterWorld(node->children[0], pmodel);
+	RecursiveDrawWaterWorld(node->children[1], pmodel);
+
 	if (!gEngfuncs.pTriAPI->BoxInPVS(node->minmaxs, node->minmaxs + 3))
 	{
 		return;
 	}
-
-// find which side of the node we are on
-	auto plane = node->plane;
-	float dot = 0.0f;
-	int side = 0;
-	Vector modelorg = g_StudioRenderer.m_vRenderOrigin;
-	modelorg = modelorg - gEngfuncs.GetEntityByIndex(0)->origin;
-
-	switch (plane->type)
-	{
-	case PLANE_X:
-		dot = modelorg[0] - plane->dist;
-		break;
-	case PLANE_Y:
-		dot = modelorg[1] - plane->dist;
-		break;
-	case PLANE_Z:
-		dot = modelorg[2] - plane->dist;
-		break;
-	default:
-		dot = DotProduct(modelorg, plane->normal) - plane->dist;
-		break;
-	}
-
-	if (dot >= 0)
-		side = 0;
-	else
-		side = 1;
-
-	// recurse down the children, Order doesn't matter
-	RecursiveDrawWaterWorld(node->children[side], pmodel);
 
 	bool bUploadedTexture = false;
 
@@ -471,11 +445,6 @@ void CWaterRenderer::RecursiveDrawWaterWorld(mnode_t* node, model_s* pmodel)
 		// HL25 used a different struct for msurface_t, causing crashes, thanks again valve
 		msurface_t* surf = (msurface_t*)pmodel->surfaces + node->firstsurface;
 		msurface_HL25_t* surf25 = (msurface_HL25_t*)pmodel->surfaces + node->firstsurface;
-
-		if (dot < 0 - BACKFACE_EPSILON)
-			side = SURF_PLANEBACK;
-		else if (dot > BACKFACE_EPSILON)
-			side = 0;
 
 		for (; c; c--)
 		{
@@ -497,15 +466,13 @@ void CWaterRenderer::RecursiveDrawWaterWorld(mnode_t* node, model_s* pmodel)
 
 			if (!bUploadedTexture)
 			{
-				auto tex = R_TextureAnimation(surf->texinfo->texture, gEngfuncs.GetEntityByIndex(0));
-				R_UploadRipples(tex);
+				R_UploadRipples(surf->texinfo->texture);
 				bUploadedTexture = true;
 			}
 
 			EmitWaterPolys(surf, false);
 		}
 	}
-	RecursiveDrawWaterWorld(node->children[!side], pmodel);
 }
 
 void CWaterRenderer::DrawWaterForEntity(cl_entity_t* entity)
@@ -518,6 +485,7 @@ void CWaterRenderer::DrawWaterForEntity(cl_entity_t* entity)
 
 	Vector mins = entity->origin + entity->curstate.mins;
 	Vector maxs = entity->origin + entity->curstate.maxs;
+	//Vector origin = entity->origin + (entity->curstate.mins + entity->curstate.maxs) * 0.5f;
 
 	if (!gEngfuncs.pTriAPI->BoxInPVS(mins, maxs))
 	{
@@ -550,6 +518,7 @@ void CWaterRenderer::DrawWaterForEntity(cl_entity_t* entity)
 		EmitWaterPolys(psurf, false, entity);	
 	}
 
+	glDisable(GL_ALPHA_TEST);
 	glDisable(GL_BLEND);
 	glDepthMask(GL_TRUE);
 	glPopMatrix();
@@ -557,6 +526,9 @@ void CWaterRenderer::DrawWaterForEntity(cl_entity_t* entity)
 
 void CWaterRenderer::Draw()
 {
+	if ((int)r_ripples->value <= 0)
+		return;
+
 	glPushAttrib(GL_TEXTURE_BIT);
 
 	// buz: workaround half-life's bug, when multitexturing left enabled after
@@ -578,23 +550,9 @@ void CWaterRenderer::Draw()
 	// draw world
 	RecursiveDrawWaterWorld(m_pworld->nodes, m_pworld);
 
-	glPopAttrib();
-}
-
-void CWaterRenderer::DrawTransparent()
-{
-	glPushAttrib(GL_TEXTURE_BIT);
-
-	// buz: workaround half-life's bug, when multitexturing left enabled after
-	// rendering brush entities
-	glActiveTextureARB(GL_TEXTURE1_ARB);
-	glDisable(GL_TEXTURE_2D);
-	glActiveTextureARB(GL_TEXTURE0_ARB);
-
 	for (size_t i = 0; i < m_WaterBuffer.size(); i++)
 	{
 		DrawWaterForEntity(m_WaterBuffer[i]);
 	}
-
 	glPopAttrib();
 }

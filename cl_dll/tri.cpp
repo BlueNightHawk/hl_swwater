@@ -51,8 +51,6 @@ Render any triangles with transparent rendermode needs here
 void DLLEXPORT HUD_DrawTransparentTriangles()
 {
 	//	RecClDrawTransparentTriangles();
-	g_WaterRenderer.DrawTransparent();
-
 	if (g_pParticleMan)
 		g_pParticleMan->Update();
 

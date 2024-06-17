@@ -24,6 +24,7 @@ typedef struct ripple_s
 } ripple_t;
 
 extern ripple_t g_ripple;
+extern cvar_t* r_ripples;
 
 void R_ResetRipples(void);
 void R_InitRipples(void);

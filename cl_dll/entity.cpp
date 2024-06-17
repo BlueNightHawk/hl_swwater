@@ -35,7 +35,8 @@ int DLLEXPORT HUD_AddEntity(int type, struct cl_entity_s* ent, const char* model
 {
 	//	RecClAddEntity(type, ent, modelname);
 
-	g_WaterRenderer.AddEntity(ent);
+	if (g_WaterRenderer.AddEntity(ent))
+		return 0;
 
 	switch (type)
 	{
