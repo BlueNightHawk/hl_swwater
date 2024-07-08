@@ -29,7 +29,7 @@
 #include "common_types.h"
 #include "cl_dll.h"
 #include "ammo.h"
-
+#include "te_frustum.h"
 #include <vector>
 
 #define DHN_DRAWZERO 1
@@ -608,6 +608,8 @@ public:
 	void AddHudElem(CHudBase* p);
 
 	float GetSensitivity();
+
+	FrustumCheck m_Frustum;
 };
 
 extern CHud gHUD;

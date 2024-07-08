@@ -483,9 +483,12 @@ void CWaterRenderer::DrawWaterForEntity(cl_entity_t* entity)
 
 	bool bUploadedTexture = false;
 
-	Vector mins = entity->origin + entity->curstate.mins;
-	Vector maxs = entity->origin + entity->curstate.maxs;
+	Vector mins = entity->origin + entity->model->mins;
+	Vector maxs = entity->origin + entity->model->maxs;
 	//Vector origin = entity->origin + (entity->curstate.mins + entity->curstate.maxs) * 0.5f;
+
+	if (gHUD.m_Frustum.CullBox(mins, maxs))
+		return;
 
 	if (!gEngfuncs.pTriAPI->BoxInPVS(mins, maxs))
 	{
