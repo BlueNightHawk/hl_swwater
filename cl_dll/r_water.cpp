@@ -376,7 +376,7 @@ static void EmitWaterPolys(msurface_t* warp, qboolean reverse, cl_entity_t *ent 
 	glpoly_t* p;
 	int i;
 
-	float waveHeight = 0.0f;
+	float waveHeight = r_ripple_world_waveheight->value;
 	Vector origin;
 
 	if (!warp->polys)

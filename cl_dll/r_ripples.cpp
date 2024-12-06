@@ -11,7 +11,8 @@
 #include "com_model.h"
 #include "r_ripples.h"
 
-cvar_t *r_ripples = nullptr, *r_ripple_updatetime = nullptr, *r_ripple_spawntime = nullptr, *r_ripple_waves = nullptr;
+cvar_t *r_ripples = nullptr, *r_ripple_updatetime = nullptr, *r_ripple_spawntime = nullptr, 
+	*r_ripple_waves = nullptr, *r_ripple_world_waveheight = nullptr;
 cvar_t* gl_texturemode;
 
 ripple_t g_ripple;
@@ -48,6 +49,7 @@ void R_InitRipples(void)
 	r_ripple_updatetime = gEngfuncs.pfnRegisterVariable("r_ripple_updatetime", "0.05", FCVAR_ARCHIVE);
 	r_ripple_spawntime = gEngfuncs.pfnRegisterVariable("r_ripple_spawntime", "0.1", FCVAR_ARCHIVE);
 	r_ripple_waves = gEngfuncs.pfnRegisterVariable("r_ripple_waves", "1", FCVAR_ARCHIVE);
+	r_ripple_world_waveheight = gEngfuncs.pfnRegisterVariable("r_ripple_world_waveheight", "0", FCVAR_ARCHIVE);
 
 	gl_texturemode = gEngfuncs.pfnGetCvarPointer("gl_texturemode");
 
