@@ -11,7 +11,7 @@
 #include "com_model.h"
 #include "r_ripples.h"
 
-cvar_t *r_ripples = nullptr, *r_ripple_updatetime = nullptr, *r_ripple_spawntime = nullptr;
+cvar_t *r_ripples = nullptr, *r_ripple_updatetime = nullptr, *r_ripple_spawntime = nullptr, *r_ripple_waves = nullptr;
 cvar_t* gl_texturemode;
 
 ripple_t g_ripple;
@@ -25,12 +25,21 @@ ripple_t g_ripple;
 */
 void R_ResetRipples(void)
 {
+	g_ripple.enabled = (int)r_ripples->value > 0;
+
 	g_ripple.curbuf = g_ripple.buf[0];
 	g_ripple.oldbuf = g_ripple.buf[1];
 	g_ripple.time = g_ripple.oldtime = gEngfuncs.GetClientTime() - 0.1;
 	memset(g_ripple.buf, 0, sizeof(g_ripple.buf));
 
 	R_UpdateRippleTexParams();
+
+	for (auto &f : g_ripple.texbuffers)
+	{
+		delete[] f.second;
+	}
+
+	g_ripple.texbuffers.clear();
 }
 
 void R_InitRipples(void)
@@ -38,8 +47,11 @@ void R_InitRipples(void)
 	r_ripples = gEngfuncs.pfnRegisterVariable("r_ripples", "1", FCVAR_ARCHIVE);
 	r_ripple_updatetime = gEngfuncs.pfnRegisterVariable("r_ripple_updatetime", "0.05", FCVAR_ARCHIVE);
 	r_ripple_spawntime = gEngfuncs.pfnRegisterVariable("r_ripple_spawntime", "0.1", FCVAR_ARCHIVE);
+	r_ripple_waves = gEngfuncs.pfnRegisterVariable("r_ripple_waves", "1", FCVAR_ARCHIVE);
 
 	gl_texturemode = gEngfuncs.pfnGetCvarPointer("gl_texturemode");
+
+	g_ripple.enabled = false;
 
 	glGenTextures(1, (GLuint*)&g_ripple.rippletexturenum);
 	R_UpdateRippleTexParams();
@@ -95,7 +107,7 @@ void R_AnimateRipples(void)
 {
 	double frametime = gEngfuncs.GetClientTime() - g_ripple.time;
 
-	g_ripple.update = r_ripples->value && frametime >= r_ripple_updatetime->value;
+	g_ripple.update = g_ripple.enabled && frametime >= r_ripple_updatetime->value;
 
 	if (!g_ripple.update)
 		return;
@@ -141,20 +153,42 @@ float R_GetRippleTextureScale()
 	return g_ripple.texturescale;
 }
 
+uint32_t* R_GetPixelBuffer(GLuint tex)
+{
+	uint32_t* pixels = nullptr;
+
+	auto it = g_ripple.texbuffers.find(tex);
+
+	if (it == g_ripple.texbuffers.end())
+	{
+		pixels = new uint32_t[RIPPLES_TEXSIZE];
+
+		glBindTexture(GL_TEXTURE_2D, tex);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+		g_ripple.texbuffers.insert(std::make_pair(tex, pixels));
+	}
+	else
+	{
+		pixels = it->second;
+	}
+
+	return pixels;
+}
+
 void R_UploadRipples(struct texture_s* image)
 {
-	uint32_t pixels[RIPPLES_TEXSIZE];
+	uint32_t *pixels;
 	int wbits, wmask, wshft;
 
-	glBindTexture(GL_TEXTURE_2D, image->gl_texturenum);
+	pixels = R_GetPixelBuffer(image->gl_texturenum);
 
 	// discard unuseful textures
-	if (!r_ripples->value || image->width > RIPPLES_CACHEWIDTH || image->width != image->height)
+	if (!g_ripple.enabled || image->width > RIPPLES_CACHEWIDTH || image->width != image->height)
 	{
 		return;
 	}
 
-	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 	glBindTexture(GL_TEXTURE_2D, g_ripple.rippletexturenum);
 
 	// no updates this frame
@@ -162,7 +196,7 @@ void R_UploadRipples(struct texture_s* image)
 		return;
 
 	g_ripple.gl_texturenum = image->gl_texturenum;
-	if (r_ripples->value == 1.0f)
+	if (r_ripples->value < 2.0f)
 	{
 		g_ripple.texturescale = V_max(1.0f, image->width / 64.0f);
 	}
@@ -175,10 +209,10 @@ void R_UploadRipples(struct texture_s* image)
 	wshft = 7 - wbits;
 	wmask = image->width - 1;
 
-	for (int y = 0; y < image->height; y++)
+	for (unsigned int y = 0; y < image->height; y++)
 	{
 		int ry = y << (7 + wshft);
-		int x;
+		unsigned int x;
 
 		for (x = 0; x < image->width; x++)
 		{

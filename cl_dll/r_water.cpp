@@ -34,6 +34,13 @@ CWaterRenderer g_WaterRenderer;
 
 extern CGameStudioModelRenderer g_StudioRenderer;
 
+float r_turbsin[] =
+	{
+#include "r_turbsin.h"
+};
+
+#define TURBSCALE (256.0 / (2 * M_PI))
+
 #define SURF_PLANEBACK 2
 #define SURF_DRAWSKY 4
 #define SURF_DRAWSPRITE 8
@@ -92,7 +99,7 @@ void CWaterRenderer::VidInit()
 
 bool CWaterRenderer::AddEntity(cl_entity_s* ent)
 {
-	if ((int)r_ripples->value <= 0)
+	if (!g_ripple.enabled)
 		return false;
 
 	if ((ent->baseline.eflags & EF_NODRAW) != 0)
@@ -369,10 +376,20 @@ static void EmitWaterPolys(msurface_t* warp, qboolean reverse, cl_entity_t *ent 
 	glpoly_t* p;
 	int i;
 
+	float waveHeight = 0.0f;
 	Vector origin;
 
 	if (!warp->polys)
 		return;
+
+	if ((int)r_ripple_waves->value > 0 && ent)
+	{
+		// set the current waveheight
+		if (warp->polys->verts[0][2] >= g_StudioRenderer.m_vRenderOrigin[2])
+			waveHeight = -ent->curstate.scale;
+		else
+			waveHeight = ent->curstate.scale;
+	}
 
 	for (p = warp->polys; p; p = p->next)
 	{
@@ -389,7 +406,14 @@ static void EmitWaterPolys(msurface_t* warp, qboolean reverse, cl_entity_t *ent 
 
 		for (i = 0; i < (-p->numverts); i++)
 		{
-			nv = v[2];
+			if (waveHeight != 0.0f)
+			{
+				nv = r_turbsin[(int)(gEngfuncs.GetClientTime() * 160.0f + v[1] + v[0]) & 255] + 8.0f;
+				nv = (r_turbsin[(int)(v[0] * 5.0f + gEngfuncs.GetClientTime() * 171.0f - v[1]) & 255] + 8.0f) * 0.8f + nv;
+				nv = nv * waveHeight + v[2];
+			}
+			else
+				nv = v[2];
 
 			if (!ent || nv > (ent->curstate.maxs.z - 5))
 			{
@@ -431,7 +455,7 @@ void CWaterRenderer::RecursiveDrawWaterWorld(mnode_t* node, model_s* pmodel)
 	RecursiveDrawWaterWorld(node->children[0], pmodel);
 	RecursiveDrawWaterWorld(node->children[1], pmodel);
 
-	if (!gEngfuncs.pTriAPI->BoxInPVS(node->minmaxs, node->minmaxs + 3))
+	if (gHUD.m_Frustum.CullBox(node->minmaxs, node->minmaxs + 3))
 	{
 		return;
 	}
@@ -448,6 +472,21 @@ void CWaterRenderer::RecursiveDrawWaterWorld(mnode_t* node, model_s* pmodel)
 
 		for (; c; c--)
 		{
+			if (surf->visframe != m_framecount)
+				goto end;
+
+			if ((surf->flags & (SURF_DRAWTURB)) == 0)
+				goto end;
+
+			if (!bUploadedTexture)
+			{
+				R_UploadRipples(surf->texinfo->texture);
+				bUploadedTexture = true;
+			}
+
+			EmitWaterPolys(surf, false);
+
+end:
 			if (m_bisHL25)
 			{
 				surf = (msurface_t*)surf25;
@@ -457,20 +496,6 @@ void CWaterRenderer::RecursiveDrawWaterWorld(mnode_t* node, model_s* pmodel)
 			{
 				surf++;
 			}
-
-			if (surf->visframe != m_framecount)
-				continue;
-
-			if ((surf->flags & SURF_DRAWTURB) == 0)
-				continue;
-
-			if (!bUploadedTexture)
-			{
-				R_UploadRipples(surf->texinfo->texture);
-				bUploadedTexture = true;
-			}
-
-			EmitWaterPolys(surf, false);
 		}
 	}
 }
@@ -485,15 +510,9 @@ void CWaterRenderer::DrawWaterForEntity(cl_entity_t* entity)
 
 	Vector mins = entity->origin + entity->model->mins;
 	Vector maxs = entity->origin + entity->model->maxs;
-	//Vector origin = entity->origin + (entity->curstate.mins + entity->curstate.maxs) * 0.5f;
 
 	if (gHUD.m_Frustum.CullBox(mins, maxs))
 		return;
-
-	if (!gEngfuncs.pTriAPI->BoxInPVS(mins, maxs))
-	{
-		return;
-	}
 
 	glPushMatrix();
 	R_RotateForEntity(entity);
@@ -529,7 +548,7 @@ void CWaterRenderer::DrawWaterForEntity(cl_entity_t* entity)
 
 void CWaterRenderer::Draw()
 {
-	if ((int)r_ripples->value <= 0)
+	if (!g_ripple.enabled)
 		return;
 
 	glPushAttrib(GL_TEXTURE_BIT);
@@ -558,7 +577,7 @@ void CWaterRenderer::Draw()
 
 void CWaterRenderer::DrawTransparent()
 {
-	if ((int)r_ripples->value <= 0)
+	if (!g_ripple.enabled)
 		return;
 
 	glPushAttrib(GL_TEXTURE_BIT);
