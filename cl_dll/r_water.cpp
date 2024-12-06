@@ -508,8 +508,8 @@ void CWaterRenderer::DrawWaterForEntity(cl_entity_t* entity)
 
 	bool bUploadedTexture = false;
 
-	Vector mins = entity->origin + entity->model->mins;
-	Vector maxs = entity->origin + entity->model->maxs;
+	Vector mins = entity->origin + entity->curstate.mins;
+	Vector maxs = entity->origin + entity->curstate.maxs;
 
 	if (gHUD.m_Frustum.CullBox(mins, maxs))
 		return;
@@ -520,6 +520,15 @@ void CWaterRenderer::DrawWaterForEntity(cl_entity_t* entity)
 
 	for (int i = 0; i < entity->model->nummodelsurfaces; i++)
 	{
+		if (!bUploadedTexture)
+		{
+			auto tex = R_TextureAnimation(psurf->texinfo->texture, entity);
+			R_UploadRipples(tex);
+			bUploadedTexture = true;
+		}
+
+		EmitWaterPolys(psurf, false, entity);	
+
 		if (m_bisHL25)
 		{
 			psurf = (msurface_t*)psurf25;
@@ -529,15 +538,6 @@ void CWaterRenderer::DrawWaterForEntity(cl_entity_t* entity)
 		{
 			psurf++;
 		}
-
-		if (!bUploadedTexture)
-		{
-			auto tex = R_TextureAnimation(psurf->texinfo->texture, entity);
-			R_UploadRipples(tex);
-			bUploadedTexture = true;
-		}
-
-		EmitWaterPolys(psurf, false, entity);	
 	}
 
 	glDisable(GL_ALPHA_TEST);
